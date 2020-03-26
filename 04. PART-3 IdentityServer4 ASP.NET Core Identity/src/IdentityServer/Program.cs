@@ -8,6 +8,9 @@ using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.SystemConsole.Themes;
 using System;
+using IdentityServer.Data.Seed;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IdentityServer
 {
@@ -35,7 +38,16 @@ namespace IdentityServer
             try
             {
                 Log.Information("Starting host...");
-                CreateHostBuilder(args).Build().Run();
+                var host = CreateHostBuilder(args).Build();
+                var config = host.Services.GetRequiredService<IConfiguration>();
+                bool seed = config.GetSection("Data").GetValue<bool>("Seed");
+                if (seed)
+                {
+                    var connectionString = config.GetConnectionString("DefaultConnection");
+                    Users.EnsureSeedData(connectionString);
+                }
+                //CreateHostBuilder(args).Build().Run();
+                host.Run();
                 return 0;
             }
             catch (Exception ex)

@@ -14,6 +14,10 @@ using System;
 using IdentityServer.Models;
 using Microsoft.AspNetCore.Identity;
 using IdentityServer.Data;
+using System.Linq;
+//using IdentityServer.Data.Seed;
+using IdentityServer4.EntityFramework.DbContexts;
+using IdentityServer4.EntityFramework.Mappers;
 
 namespace IdentityServer
 {
@@ -76,6 +80,14 @@ namespace IdentityServer
 
         public void Configure(IApplicationBuilder app)
         {
+            // this will do the initial DB population
+            bool seed = Configuration.GetSection("Data").GetValue<bool>("Seed");
+            if (seed)
+            {
+                InitializeDatabase(app);
+                throw new Exception("Seeding completed. Disable the seed flag in appsettings");
+            }
+
             if (Environment.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -93,6 +105,43 @@ namespace IdentityServer
             {
                 endpoints.MapDefaultControllerRoute();
             });
+        }
+
+        private void InitializeDatabase(IApplicationBuilder app)
+        {
+            using (var serviceScope = app.ApplicationServices.GetService<IServiceScopeFactory>().CreateScope())
+            {
+                serviceScope.ServiceProvider.GetRequiredService<PersistedGrantDbContext>().Database.Migrate();
+
+                var context = serviceScope.ServiceProvider.GetRequiredService<IdentityServer4.EntityFramework.DbContexts.ConfigurationDbContext>();
+                context.Database.Migrate();
+                if (!context.Clients.Any())
+                {
+                    foreach (var client in IdentityServer.Data.Seed.Config.GetClients())
+                    {
+                        context.Clients.Add(client.ToEntity());
+                    }
+                    context.SaveChanges();
+                }
+
+                if (!context.IdentityResources.Any())
+                {
+                    foreach (var resource in IdentityServer.Data.Seed.Config.GetIdentityResources())
+                    {
+                        context.IdentityResources.Add(resource.ToEntity());
+                    }
+                    context.SaveChanges();
+                }
+
+                if (!context.ApiResources.Any())
+                {
+                    foreach (var resource in IdentityServer.Data.Seed.Config.GetApis())
+                    {
+                        context.ApiResources.Add(resource.ToEntity());
+                    }
+                    context.SaveChanges();
+                }
+            }
         }
     }
 }
